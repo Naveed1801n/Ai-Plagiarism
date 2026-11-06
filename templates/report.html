@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Report – PlagiaGuard AI</title>
+<link rel="stylesheet" href="/static/style.css"/>
+</head>
+<body>
+  <nav class="navbar">
+    <div class="nav-brand">
+      <span class="brand-icon">🔍</span>
+      <span>PlagiaGuard <span class="brand-accent">AI</span></span>
+    </div>
+    <div class="nav-links">
+      <a href="/">Home</a>
+      <a href="/submit">Submit Assignment</a>
+      <a href="/dashboard">Dashboard</a>
+      <a href="/instructor">Instructor Panel</a>
+    </div>
+  </nav>
+
+  <div class="page-container report-page">
+    <div id="reportContent">
+      <div class="loading-row">Loading report...</div>
+    </div>
+  </div>
+
+  <footer class="footer">
+    <p>PlagiaGuard AI &copy; 2024 — Powered by IBM Granite</p>
+  </footer>
+
+  <script>
+    const sid = {{ submission_id }};
+
+    function scoreClass(s) {
+      if (s >= 70) return 'score-high';
+      if (s >= 40) return 'score-med';
+      return 'score-low';
+    }
+
+    function riskLevel(p, a) {
+      const m = Math.max(p, a);
+      return m >= 70 ? 'HIGH' : m >= 40 ? 'MEDIUM' : 'LOW';
+    }
+
+    function gaugeHTML(value, label, colorClass) {
+      const angle = (value / 100) * 180;
+      const rad = (angle - 90) * Math.PI / 180;
+      const x = 60 + 45 * Math.cos(rad);
+      const y = 60 + 45 * Math.sin(rad);
+      const color = colorClass === 'score-high' ? '#ef4444' :
+                    colorClass === 'score-med' ? '#f59e0b' : '#22c55e';
+      return `
+        <div class="gauge-wrap">
+          <svg viewBox="0 0 120 70" width="160" height="90">
+            <path d="M15,60 A45,45 0 0,1 105,60" fill="none" stroke="#e5e7eb" stroke-width="10" stroke-linecap="round"/>
+            <path d="M15,60 A45,45 0 0,1 105,60" fill="none" stroke="${color}" stroke-width="10"
+              stroke-dasharray="${angle * 1.57} 283" stroke-linecap="round"/>
+            <line x1="60" y1="60" x2="${x}" y2="${y}" stroke="#1f2328" stroke-width="2.5" stroke-linecap="round"/>
+            <circle cx="60" cy="60" r="4" fill="#1f2328"/>
+            <text x="60" y="52" text-anchor="middle" font-size="14" font-weight="bold" fill="${color}">${value}%</text>
+          </svg>
+          <div class="gauge-label">${label}</div>
+        </div>
+      `;
+    }
+
+    fetch('/api/submission/' + sid).then(r => r.json()).then(s => {
+      const risk = riskLevel(s.plagiarism_score, s.ai_generated_score);
+      const container = document.getElementById('reportContent');
+      container.innerHTML = `
+        <div class="report-header">
+          <div>
+            <h1>Integrity Report</h1>
+            <p class="report-meta">
+              <strong>${s.student_name}</strong> · ${s.course} · ${s.assignment_title}
+              <br/>Submitted: ${new Date(s.submitted_at).toLocaleString()}
+            </p>
+          </div>
+          <button class="btn btn-outline" onclick="window.print()">🖨 Print Report</button>
+        </div>
+
+        <div class="risk-banner risk-${risk.toLowerCase()} report-risk">
+          ⚠ Overall Risk Level: <strong>${risk}</strong>
+        </div>
+
+        <!-- Gauges -->
+        <div class="card">
+          <h2>Score Overview</h2>
+          <div class="gauges-row">
+            ${gaugeHTML(s.plagiarism_score, 'Plagiarism Score', scoreClass(s.plagiarism_score))}
+            ${gaugeHTML(s.ai_generated_score, 'AI-Generated Score', scoreClass(s.ai_generated_score))}
+            ${gaugeHTML(Math.max(0, 100 - Math.max(s.plagiarism_score, s.ai_generated_score)), 'Originality Score', 'score-low')}
+          </div>
+        </div>
+
+        <!-- Granite Analysis -->
+        <div class="card">
+          <h2>IBM Granite AI Analysis</h2>
+          <div class="analysis-box no-border">
+            <p>${s.granite_analysis}</p>
+          </div>
+        </div>
+
+        <!-- Similarity Matches -->
+        ${s.similarity_matches.length ? `
+          <div class="card">
+            <h2>Similarity Matches</h2>
+            <table class="data-table">
+              <thead><tr><th>Student</th><th>Assignment</th><th>Similarity</th></tr></thead>
+              <tbody>
+                ${s.similarity_matches.map(m => `
+                  <tr>
+                    <td>${m.student_name}</td>
+                    <td>${m.assignment_title}</td>
+                    <td><span class="score-pill ${scoreClass(m.similarity)}">${m.similarity}%</span></td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        ` : ''}
+
+        <!-- Full text -->
+        <div class="card">
+          <h2>Full Submission Text</h2>
+          <div class="text-box">${s.text}</div>
+        </div>
+
+        <!-- Instructor feedback -->
+        ${s.instructor_feedback ? `
+          <div class="card">
+            <h2>Instructor Feedback</h2>
+            <div class="analysis-box no-border">
+              <p>${s.instructor_feedback}</p>
+              ${s.flag ? '<div class="flag-tag">🚩 Flagged for Misconduct</div>' : ''}
+            </div>
+          </div>
+        ` : ''}
+
+        <div class="report-actions">
+          <a href="/dashboard" class="btn btn-outline">← Back to Dashboard</a>
+          <a href="/instructor" class="btn btn-primary">Review in Instructor Panel</a>
+        </div>
+      `;
+    }).catch(() => {
+      document.getElementById('reportContent').innerHTML =
+        '<div class="error-box">Failed to load report.</div>';
+    });
+  </script>
+</body>
+</html>

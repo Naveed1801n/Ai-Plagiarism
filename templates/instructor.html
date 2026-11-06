@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Instructor Panel – PlagiaGuard AI</title>
+<link rel="stylesheet" href="/static/style.css"/>
+</head>
+<body>
+  <nav class="navbar">
+    <div class="nav-brand">
+      <span class="brand-icon">🔍</span>
+      <span>PlagiaGuard <span class="brand-accent">AI</span></span>
+    </div>
+    <div class="nav-links">
+      <a href="/">Home</a>
+      <a href="/submit">Submit Assignment</a>
+      <a href="/dashboard">Dashboard</a>
+      <a href="/instructor" class="active">Instructor Panel</a>
+    </div>
+  </nav>
+
+  <div class="page-container">
+    <div class="page-header">
+      <h1>Instructor Review Panel</h1>
+      <p>Review flagged and high-risk submissions. Your feedback trains the AI to improve over time.</p>
+    </div>
+
+    <div class="instructor-layout">
+      <!-- LEFT: Suspicious submissions list -->
+      <div class="card panel-left">
+        <div class="panel-head">
+          <h2>Suspicious Submissions</h2>
+          <select id="riskFilter">
+            <option value="">All</option>
+            <option value="high">High Risk</option>
+            <option value="medium">Medium Risk</option>
+          </select>
+        </div>
+        <div id="suspiciousList" class="suspicious-list">
+          <div class="loading-row">Loading...</div>
+        </div>
+      </div>
+
+      <!-- RIGHT: Detail + feedback -->
+      <div class="card panel-right" id="detailPanel">
+        <div class="empty-state">
+          <div class="empty-icon">📋</div>
+          <p>Select a submission to review</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer class="footer">
+    <p>PlagiaGuard AI &copy; 2024 — Powered by IBM Granite</p>
+  </footer>
+
+  <script>
+    let submissions = [];
+
+    async function loadSubmissions() {
+      const all = await fetch('/api/submissions').then(r => r.json());
+      submissions = all.filter(s =>
+        Math.max(s.plagiarism_score, s.ai_generated_score) >= 40
+      ).sort((a, b) =>
+        Math.max(b.plagiarism_score, b.ai_generated_score) -
+        Math.max(a.plagiarism_score, a.ai_generated_score)
+      );
+      renderList(submissions);
+    }
+
+    function riskLevel(p, a) {
+      const m = Math.max(p, a);
+      return m >= 70 ? 'HIGH' : m >= 40 ? 'MEDIUM' : 'LOW';
+    }
+
+    function renderList(subs) {
+      const container = document.getElementById('suspiciousList');
+      if (!subs.length) {
+        container.innerHTML = '<div class="loading-row">No suspicious submissions found.</div>';
+        return;
+      }
+      container.innerHTML = subs.map(s => {
+        const risk = riskLevel(s.plagiarism_score, s.ai_generated_score);
+        return `
+          <div class="sus-item" onclick="loadDetail(${s.id})">
+            <div class="sus-top">
+              <strong>${s.student_name}</strong>
+              <span class="risk-badge risk-${risk.toLowerCase()}">${risk}</span>
+            </div>
+            <div class="sus-meta">${s.course} · ${s.assignment_title}</div>
+            <div class="sus-scores">
+              <span>P: ${s.plagiarism_score}%</span>
+              <span>AI: ${s.ai_generated_score}%</span>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    async function loadDetail(id) {
+      const s = await fetch('/api/submission/' + id).then(r => r.json());
+      const risk = riskLevel(s.plagiarism_score, s.ai_generated_score);
+      const panel = document.getElementById('detailPanel');
+      panel.innerHTML = `
+        <h2>${s.assignment_title}</h2>
+        <div class="detail-meta">
+          <span><strong>Student:</strong> ${s.student_name}</span>
+          <span><strong>Course:</strong> ${s.course}</span>
+          <span><strong>Submitted:</strong> ${new Date(s.submitted_at).toLocaleString()}</span>
+        </div>
+
+        <div class="risk-banner risk-${risk.toLowerCase()}" style="margin:1rem 0;">
+          ⚠ Risk Level: ${risk}
+        </div>
+
+        <div class="scores-grid">
+          <div class="score-block">
+            <div class="score-label">Plagiarism Score</div>
+            <div class="score-circle ${scoreClass(s.plagiarism_score)}">${s.plagiarism_score}%</div>
+          </div>
+          <div class="score-block">
+            <div class="score-label">AI-Generated Score</div>
+            <div class="score-circle ${scoreClass(s.ai_generated_score)}">${s.ai_generated_score}%</div>
+          </div>
+        </div>
+
+        <div class="analysis-box">
+          <h3>IBM Granite Analysis</h3>
+          <p>${s.granite_analysis}</p>
+        </div>
+
+        ${s.similarity_matches.length ? `
+          <div class="analysis-box">
+            <h3>Similar Submissions</h3>
+            ${s.similarity_matches.map(m => `
+              <div class="match-item">
+                <div class="match-info"><strong>${m.student_name}</strong> — ${m.assignment_title}</div>
+                <div class="match-score ${scoreClass(m.similarity)}">${m.similarity}% similar</div>
+              </div>
+            `).join('')}
+          </div>
+        ` : ''}
+
+        <div class="text-preview">
+          <h3>Submission Text</h3>
+          <div class="text-box">${s.text.substring(0, 600)}${s.text.length > 600 ? '...' : ''}</div>
+        </div>
+
+        <div class="feedback-section">
+          <h3>Instructor Feedback <span class="label-hint">(trains the AI model)</span></h3>
+          ${s.instructor_feedback ? `
+            <div class="existing-feedback">
+              <strong>Existing Feedback:</strong> ${s.instructor_feedback}
+            </div>
+          ` : ''}
+          <textarea id="feedbackText" rows="4" placeholder="Add your assessment, context, or notes about this submission..."></textarea>
+          <div class="feedback-actions">
+            <label class="flag-label">
+              <input type="checkbox" id="flagCheck" ${s.flag ? 'checked' : ''}/>
+              🚩 Flag this submission for misconduct
+            </label>
+            <button class="btn btn-primary" onclick="submitFeedback(${s.id})">
+              Submit Feedback
+            </button>
+          </div>
+          <div class="feedback-success" id="feedbackSuccess" style="display:none;">
+            ✅ Feedback saved. The AI model will learn from this review.
+          </div>
+        </div>
+      `;
+    }
+
+    async function submitFeedback(id) {
+      const feedback = document.getElementById('feedbackText').value.trim();
+      const flag = document.getElementById('flagCheck').checked;
+      if (!feedback) { alert('Please enter feedback before submitting.'); return; }
+
+      const res = await fetch('/api/feedback/' + id, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({feedback, flag})
+      });
+      if (res.ok) {
+        document.getElementById('feedbackSuccess').style.display = 'block';
+        loadSubmissions();
+      }
+    }
+
+    function scoreClass(s) {
+      if (s >= 70) return 'score-high';
+      if (s >= 40) return 'score-med';
+      return 'score-low';
+    }
+
+    document.getElementById('riskFilter').addEventListener('change', e => {
+      const val = e.target.value;
+      if (!val) { renderList(submissions); return; }
+      renderList(submissions.filter(s => riskLevel(s.plagiarism_score, s.ai_generated_score).toLowerCase() === val));
+    });
+
+    loadSubmissions();
+  </script>
+</body>
+</html>

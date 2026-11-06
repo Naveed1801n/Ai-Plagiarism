@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>PlagiaGuard AI – Academic Integrity Platform</title>
+<link rel="stylesheet" href="/static/style.css"/>
+</head>
+<body>
+  <!-- NAVBAR -->
+  <nav class="navbar">
+    <div class="nav-brand">
+      <span class="brand-icon">🔍</span>
+      <span>PlagiaGuard <span class="brand-accent">AI</span></span>
+    </div>
+    <div class="nav-links">
+      <a href="/" class="active">Home</a>
+      <a href="/submit">Submit Assignment</a>
+      <a href="/dashboard">Dashboard</a>
+      <a href="/instructor">Instructor Panel</a>
+    </div>
+  </nav>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="hero-content">
+      <div class="hero-badge">Powered by IBM Granite AI</div>
+      <h1>AI-Driven Plagiarism<br/><span class="gradient-text">Intelligence Platform</span></h1>
+      <p class="hero-sub">
+        Adaptive academic integrity detection that learns from instructor feedback.
+        Identify paraphrasing, AI-generated content, and submission anomalies with
+        contextual intelligence.
+      </p>
+      <div class="hero-actions">
+        <a href="/submit" class="btn btn-primary">Submit Assignment</a>
+        <a href="/dashboard" class="btn btn-outline">View Dashboard</a>
+      </div>
+    </div>
+    <div class="hero-visual">
+      <div class="score-card-demo">
+        <div class="demo-label">Live Analysis Preview</div>
+        <div class="demo-meter">
+          <span>Plagiarism</span>
+          <div class="meter-bar"><div class="meter-fill red" style="width:72%"></div></div>
+          <span class="meter-val">72%</span>
+        </div>
+        <div class="demo-meter">
+          <span>AI Generated</span>
+          <div class="meter-bar"><div class="meter-fill orange" style="width:85%"></div></div>
+          <span class="meter-val">85%</span>
+        </div>
+        <div class="demo-meter">
+          <span>Originality</span>
+          <div class="meter-bar"><div class="meter-fill green" style="width:28%"></div></div>
+          <span class="meter-val">28%</span>
+        </div>
+        <div class="demo-risk high">⚠ HIGH RISK – Review Required</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FEATURES -->
+  <section class="features">
+    <h2 class="section-title">How It Works</h2>
+    <div class="feature-grid">
+      <div class="feature-card">
+        <div class="feat-icon">📝</div>
+        <h3>Submit Assignment</h3>
+        <p>Students paste their assignment text. The system instantly begins multi-layer analysis.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feat-icon">🤖</div>
+        <h3>IBM Granite Analysis</h3>
+        <p>IBM Granite LLM detects AI-generated writing patterns, unnatural phrasing, and stylistic inconsistencies.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feat-icon">🧠</div>
+        <h3>Semantic Similarity</h3>
+        <p>Deep neural embeddings compare submissions against the historical corpus beyond simple keyword matching.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feat-icon">📊</div>
+        <h3>Instructor Learning</h3>
+        <p>Feedback from instructors trains the system to adapt to course-specific styles and grading patterns.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feat-icon">🚩</div>
+        <h3>Smart Flagging</h3>
+        <p>Risk-tiered alerts (Low / Medium / High) prioritize instructor attention on the most suspicious cases.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feat-icon">📈</div>
+        <h3>Analytics Dashboard</h3>
+        <p>Track submission trends, flag rates, and course-level integrity metrics over time.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- STATS BAR -->
+  <section class="stats-bar">
+    <div class="stat">
+      <div class="stat-num" id="stat-total">—</div>
+      <div class="stat-label">Submissions Analyzed</div>
+    </div>
+    <div class="stat">
+      <div class="stat-num" id="stat-flagged">—</div>
+      <div class="stat-label">Cases Flagged</div>
+    </div>
+    <div class="stat">
+      <div class="stat-num" id="stat-avg">—</div>
+      <div class="stat-label">Avg Plagiarism Score</div>
+    </div>
+    <div class="stat">
+      <div class="stat-num" id="stat-ai">—</div>
+      <div class="stat-label">High AI-Gen Cases</div>
+    </div>
+  </section>
+
+  <!-- TECH BADGE -->
+  <section class="tech-section">
+    <h2 class="section-title">Technology Stack</h2>
+    <div class="tech-badges">
+      <div class="tech-badge ibm">IBM Granite LLM</div>
+      <div class="tech-badge">IBM watsonx.ai</div>
+      <div class="tech-badge">Sentence Transformers</div>
+      <div class="tech-badge">Flask REST API</div>
+      <div class="tech-badge">Semantic NLP</div>
+      <div class="tech-badge">SQLite Corpus</div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <p>PlagiaGuard AI &copy; 2024 — Built for IBM Cloud Internship | Problem Statement #10</p>
+  </footer>
+
+  <script>
+    fetch('/api/stats').then(r => r.json()).then(d => {
+      document.getElementById('stat-total').textContent = d.total;
+      document.getElementById('stat-flagged').textContent = d.flagged;
+      document.getElementById('stat-avg').textContent = d.avg_plagiarism_score + '%';
+      document.getElementById('stat-ai').textContent = d.high_ai;
+    }).catch(() => {});
+  </script>
+</body>
+</html>

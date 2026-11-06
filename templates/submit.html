@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Submit Assignment – PlagiaGuard AI</title>
+<link rel="stylesheet" href="/static/style.css"/>
+</head>
+<body>
+  <nav class="navbar">
+    <div class="nav-brand">
+      <span class="brand-icon">🔍</span>
+      <span>PlagiaGuard <span class="brand-accent">AI</span></span>
+    </div>
+    <div class="nav-links">
+      <a href="/">Home</a>
+      <a href="/submit" class="active">Submit Assignment</a>
+      <a href="/dashboard">Dashboard</a>
+      <a href="/instructor">Instructor Panel</a>
+    </div>
+  </nav>
+
+  <div class="page-container">
+    <div class="page-header">
+      <h1>Submit Assignment</h1>
+      <p>Paste your assignment text below for instant plagiarism and AI-generation analysis.</p>
+    </div>
+
+    <div class="submit-layout">
+      <!-- FORM -->
+      <div class="card submit-card">
+        <form id="submitForm">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="student_name">Student Name</label>
+              <input type="text" id="student_name" placeholder="e.g. John Doe" required/>
+            </div>
+            <div class="form-group">
+              <label for="course">Course</label>
+              <input type="text" id="course" placeholder="e.g. CS101" required/>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="assignment_title">Assignment Title</label>
+            <input type="text" id="assignment_title" placeholder="e.g. Essay on Machine Learning" required/>
+          </div>
+          <div class="form-group">
+            <label for="text">Assignment Text <span class="label-hint">(min. 50 characters)</span></label>
+            <textarea id="text" rows="12" placeholder="Paste your assignment text here..." required></textarea>
+            <div class="char-count" id="charCount">0 characters</div>
+          </div>
+          <button type="submit" class="btn btn-primary btn-full" id="submitBtn">
+            <span id="submitLabel">🔍 Analyze Assignment</span>
+          </button>
+        </form>
+        <div class="error-box" id="errorBox" style="display:none;"></div>
+      </div>
+
+      <!-- RESULT PANEL -->
+      <div class="card result-card" id="resultPanel" style="display:none;">
+        <h2>Analysis Results</h2>
+
+        <div class="risk-banner" id="riskBanner"></div>
+
+        <div class="scores-grid">
+          <div class="score-block">
+            <div class="score-label">Plagiarism Score</div>
+            <div class="score-circle" id="plagScore">0%</div>
+            <div class="score-meter">
+              <div class="score-meter-fill" id="plagMeter"></div>
+            </div>
+          </div>
+          <div class="score-block">
+            <div class="score-label">AI-Generated Score</div>
+            <div class="score-circle ai" id="aiScore">0%</div>
+            <div class="score-meter">
+              <div class="score-meter-fill ai-fill" id="aiMeter"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="analysis-box">
+          <h3>IBM Granite Analysis</h3>
+          <p id="graniteText"></p>
+        </div>
+
+        <div id="matchesSection" style="display:none;">
+          <h3>Similar Submissions Found</h3>
+          <div id="matchesList" class="matches-list"></div>
+        </div>
+
+        <a id="viewReportBtn" href="#" class="btn btn-outline btn-full" style="margin-top:1rem;">
+          📄 View Full Report
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <footer class="footer">
+    <p>PlagiaGuard AI &copy; 2024 — Powered by IBM Granite</p>
+  </footer>
+
+  <script>
+    const textarea = document.getElementById('text');
+    const charCount = document.getElementById('charCount');
+    textarea.addEventListener('input', () => {
+      charCount.textContent = textarea.value.length + ' characters';
+    });
+
+    document.getElementById('submitForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById('submitBtn');
+      const label = document.getElementById('submitLabel');
+      const errorBox = document.getElementById('errorBox');
+      errorBox.style.display = 'none';
+
+      label.textContent = '⏳ Analyzing...';
+      btn.disabled = true;
+
+      const payload = {
+        student_name: document.getElementById('student_name').value.trim(),
+        course: document.getElementById('course').value.trim(),
+        assignment_title: document.getElementById('assignment_title').value.trim(),
+        text: textarea.value.trim()
+      };
+
+      try {
+        const res = await fetch('/api/submit', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+          errorBox.textContent = data.error || 'Submission failed.';
+          errorBox.style.display = 'block';
+          return;
+        }
+
+        // Populate results
+        const panel = document.getElementById('resultPanel');
+        panel.style.display = 'block';
+
+        document.getElementById('plagScore').textContent = data.plagiarism_score + '%';
+        document.getElementById('aiScore').textContent = data.ai_generated_score + '%';
+        document.getElementById('plagMeter').style.width = data.plagiarism_score + '%';
+        document.getElementById('aiMeter').style.width = data.ai_generated_score + '%';
+        document.getElementById('graniteText').textContent = data.granite_analysis;
+
+        const banner = document.getElementById('riskBanner');
+        banner.textContent = '⚠ Risk Level: ' + data.risk_level;
+        banner.className = 'risk-banner risk-' + data.risk_level.toLowerCase();
+
+        // Color score circles
+        const plagCircle = document.getElementById('plagScore');
+        plagCircle.className = 'score-circle ' + scoreClass(data.plagiarism_score);
+        const aiCircle = document.getElementById('aiScore');
+        aiCircle.className = 'score-circle ' + scoreClass(data.ai_generated_score);
+
+        // Similarity matches
+        const matchSec = document.getElementById('matchesSection');
+        const matchList = document.getElementById('matchesList');
+        if (data.similarity_matches && data.similarity_matches.length > 0) {
+          matchSec.style.display = 'block';
+          matchList.innerHTML = data.similarity_matches.map(m => `
+            <div class="match-item">
+              <div class="match-info">
+                <strong>${m.student_name}</strong> — ${m.assignment_title}
+              </div>
+              <div class="match-score ${scoreClass(m.similarity)}">${m.similarity}% similar</div>
+            </div>
+          `).join('');
+        }
+
+        document.getElementById('viewReportBtn').href = '/report/' + data.submission_id;
+        panel.scrollIntoView({behavior: 'smooth'});
+
+      } catch(err) {
+        errorBox.textContent = 'Network error. Please try again.';
+        errorBox.style.display = 'block';
+      } finally {
+        label.textContent = '🔍 Analyze Assignment';
+        btn.disabled = false;
+      }
+    });
+
+    function scoreClass(score) {
+      if (score >= 70) return 'score-high';
+      if (score >= 40) return 'score-med';
+      return 'score-low';
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Dashboard – PlagiaGuard AI</title>
+<link rel="stylesheet" href="/static/style.css"/>
+</head>
+<body>
+  <nav class="navbar">
+    <div class="nav-brand">
+      <span class="brand-icon">🔍</span>
+      <span>PlagiaGuard <span class="brand-accent">AI</span></span>
+    </div>
+    <div class="nav-links">
+      <a href="/">Home</a>
+      <a href="/submit">Submit Assignment</a>
+      <a href="/dashboard" class="active">Dashboard</a>
+      <a href="/instructor">Instructor Panel</a>
+    </div>
+  </nav>
+
+  <div class="page-container">
+    <div class="page-header">
+      <h1>Analytics Dashboard</h1>
+      <p>Monitor all submissions, risk levels, and integrity trends across courses.</p>
+    </div>
+
+    <!-- STATS CARDS -->
+    <div class="stats-cards" id="statsCards">
+      <div class="stat-card">
+        <div class="stat-card-icon">📄</div>
+        <div class="stat-card-val" id="sc-total">—</div>
+        <div class="stat-card-label">Total Submissions</div>
+      </div>
+      <div class="stat-card danger">
+        <div class="stat-card-icon">🚩</div>
+        <div class="stat-card-val" id="sc-flagged">—</div>
+        <div class="stat-card-label">Flagged Cases</div>
+      </div>
+      <div class="stat-card warning">
+        <div class="stat-card-icon">🤖</div>
+        <div class="stat-card-val" id="sc-ai">—</div>
+        <div class="stat-card-label">High AI-Gen Cases</div>
+      </div>
+      <div class="stat-card info">
+        <div class="stat-card-icon">📊</div>
+        <div class="stat-card-val" id="sc-avg">—</div>
+        <div class="stat-card-label">Avg Plagiarism Score</div>
+      </div>
+    </div>
+
+    <!-- FILTER ROW -->
+    <div class="filter-row card">
+      <label>Filter by Course:</label>
+      <select id="courseFilter">
+        <option value="">All Courses</option>
+      </select>
+      <button class="btn btn-sm btn-outline" id="refreshBtn">↻ Refresh</button>
+    </div>
+
+    <!-- CHART: Score Distribution -->
+    <div class="card">
+      <h2>Score Distribution</h2>
+      <div class="chart-container">
+        <canvas id="distChart" width="700" height="220"></canvas>
+      </div>
+    </div>
+
+    <!-- TABLE -->
+    <div class="card">
+      <h2>All Submissions</h2>
+      <div class="table-wrapper">
+        <table class="data-table" id="submissionsTable">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Student</th>
+              <th>Course</th>
+              <th>Assignment</th>
+              <th>Plagiarism</th>
+              <th>AI-Gen</th>
+              <th>Risk</th>
+              <th>Submitted</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="submissionsBody">
+            <tr><td colspan="9" class="loading-row">Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <footer class="footer">
+    <p>PlagiaGuard AI &copy; 2024 — Powered by IBM Granite</p>
+  </footer>
+
+  <script>
+    let allSubs = [];
+
+    async function loadStats() {
+      const d = await fetch('/api/stats').then(r => r.json());
+      document.getElementById('sc-total').textContent = d.total;
+      document.getElementById('sc-flagged').textContent = d.flagged;
+      document.getElementById('sc-ai').textContent = d.high_ai;
+      document.getElementById('sc-avg').textContent = d.avg_plagiarism_score + '%';
+    }
+
+    async function loadCourses() {
+      const courses = await fetch('/api/courses').then(r => r.json());
+      const sel = document.getElementById('courseFilter');
+      courses.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c; opt.textContent = c;
+        sel.appendChild(opt);
+      });
+    }
+
+    async function loadSubmissions(course = '') {
+      const url = '/api/submissions' + (course ? '?course=' + encodeURIComponent(course) : '');
+      allSubs = await fetch(url).then(r => r.json());
+      renderTable(allSubs);
+      renderChart(allSubs);
+    }
+
+    function riskLevel(p, a) {
+      const m = Math.max(p, a);
+      if (m >= 70) return 'HIGH';
+      if (m >= 40) return 'MEDIUM';
+      return 'LOW';
+    }
+
+    function renderTable(subs) {
+      const tbody = document.getElementById('submissionsBody');
+      if (!subs.length) {
+        tbody.innerHTML = '<tr><td colspan="9" class="loading-row">No submissions yet.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = subs.map((s, i) => {
+        const risk = riskLevel(s.plagiarism_score, s.ai_generated_score);
+        const rClass = 'risk-badge risk-' + risk.toLowerCase();
+        const date = new Date(s.submitted_at).toLocaleDateString();
+        return `<tr>
+          <td>${i + 1}</td>
+          <td>${s.student_name}</td>
+          <td><span class="course-badge">${s.course}</span></td>
+          <td>${s.assignment_title}</td>
+          <td><span class="score-pill ${scoreClass(s.plagiarism_score)}">${s.plagiarism_score}%</span></td>
+          <td><span class="score-pill ${scoreClass(s.ai_generated_score)}">${s.ai_generated_score}%</span></td>
+          <td><span class="${rClass}">${risk}</span></td>
+          <td>${date}</td>
+          <td><a href="/report/${s.id}" class="btn btn-sm btn-outline">View</a></td>
+        </tr>`;
+      }).join('');
+    }
+
+    function renderChart(subs) {
+      const canvas = document.getElementById('distChart');
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      const bins = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
+      const plagCounts = new Array(10).fill(0);
+      const aiCounts = new Array(10).fill(0);
+
+      subs.forEach(s => {
+        const pi = Math.min(Math.floor(s.plagiarism_score / 10), 9);
+        const ai = Math.min(Math.floor(s.ai_generated_score / 10), 9);
+        plagCounts[pi]++;
+        aiCounts[ai]++;
+      });
+
+      const maxVal = Math.max(...plagCounts, ...aiCounts, 1);
+      const W = canvas.width, H = canvas.height;
+      const pad = {left: 40, bottom: 40, top: 20, right: 20};
+      const chartW = W - pad.left - pad.right;
+      const chartH = H - pad.bottom - pad.top;
+      const barW = chartW / 10 / 2 - 4;
+
+      ctx.font = '11px system-ui';
+      ctx.fillStyle = '#57606a';
+
+      // Y axis labels
+      for (let i = 0; i <= 5; i++) {
+        const val = Math.round(maxVal * i / 5);
+        const y = pad.top + chartH - (i / 5) * chartH;
+        ctx.fillText(val, 2, y + 4);
+        ctx.strokeStyle = '#e5e7eb';
+        ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(W - pad.right, y); ctx.stroke();
+      }
+
+      plagCounts.forEach((c, i) => {
+        const x = pad.left + (chartW / 10) * i;
+        const barH = (c / maxVal) * chartH;
+        ctx.fillStyle = '#3b82d4cc';
+        ctx.fillRect(x + 2, pad.top + chartH - barH, barW, barH);
+
+        const ac = aiCounts[i];
+        const aH = (ac / maxVal) * chartH;
+        ctx.fillStyle = '#f59e0bcc';
+        ctx.fillRect(x + barW + 4, pad.top + chartH - aH, barW, aH);
+
+        ctx.fillStyle = '#57606a';
+        ctx.fillText((i * 10) + '-' + ((i + 1) * 10), x + 2, H - 6);
+      });
+
+      // Legend
+      ctx.fillStyle = '#3b82d4'; ctx.fillRect(W - 160, 10, 14, 14);
+      ctx.fillStyle = '#1f2328'; ctx.fillText('Plagiarism', W - 142, 22);
+      ctx.fillStyle = '#f59e0b'; ctx.fillRect(W - 160, 30, 14, 14);
+      ctx.fillStyle = '#1f2328'; ctx.fillText('AI-Generated', W - 142, 42);
+    }
+
+    function scoreClass(s) {
+      if (s >= 70) return 'score-high';
+      if (s >= 40) return 'score-med';
+      return 'score-low';
+    }
+
+    document.getElementById('courseFilter').addEventListener('change', e => {
+      loadSubmissions(e.target.value);
+    });
+    document.getElementById('refreshBtn').addEventListener('click', () => {
+      loadSubmissions(document.getElementById('courseFilter').value);
+      loadStats();
+    });
+
+    loadStats();
+    loadCourses();
+    loadSubmissions();
+  </script>
+</body>
+</html>
